@@ -1,0 +1,6 @@
+_ReSharper.Caches/
+*.xml
+.vs
+Live2DViewerEX/
+bin/
+obj/

@@ -1,10 +1,4 @@
-﻿// Decompiled with JetBrains decompiler
-// Type: COGFDJGBDDE
-// Assembly: Assembly-CSharp, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
-// MVID: 858BD401-4131-4D42-B607-DAA3A1B2C16B
-// Assembly location: E:\Unity\Live2DViewerEX_3.0.0.02080945\assets\bin\Data\Managed\Assembly-CSharp.dll
-
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using System;
 using System.Runtime.CompilerServices;

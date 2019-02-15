@@ -1,0 +1,1 @@
+adb pull /sdcard/Android/data/com.pavostudio.live2dviewerex/files/save %cd%/

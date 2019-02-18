@@ -21,7 +21,7 @@ public class MainUI : MonoBehaviour
 
     public void OnOpenPlayer()
     {
-        if (Program.UserCheck())
+        if (Program.UserCheck()&&File.Exists(LiveViewerTools.PLAYERPREFS_PATH))
         {
             PrefData player = Program.UserLoad();
             string data = JsonConvert.SerializeObject(player);
@@ -31,7 +31,7 @@ public class MainUI : MonoBehaviour
         }
         else
         {
-            PopUI.ShowMessage(LogType.Error, "请开启Root权限");
+            PopUI.ShowMessage(LogType.Error, "没有Root权限或文件不存在");
         }
     }
 

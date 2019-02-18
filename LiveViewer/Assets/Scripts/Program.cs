@@ -11,7 +11,6 @@ using SimpleFileBrowser;
 using UnityEngine;
 using Debug = System.Diagnostics.Debug;
 
-
 public class Program
 {
     private static string file = "com.pavostudio.live2dviewerex.v2.playerprefs.xml";
@@ -78,34 +77,9 @@ public class Program
 
     public static bool RequestRoot()
     {
-        ProcessStartInfo processInfo = new ProcessStartInfo("su");
-#if UNITY_EDITOR
-        processInfo.FileName = "cmd";
-        processInfo.Arguments = "java";
-#endif
-        //processInfo.CreateNoWindow = true;
-        processInfo.UseShellExecute = false;
-        //processInfo.RedirectStandardError = true;
-        //processInfo.RedirectStandardInput = true;
-        processInfo.RedirectStandardOutput = true;
-
         try
         {
-            PopUI.ShowMessage(LogType.Log, "等待Root");
-            Process p = Process.Start(processInfo);
-            while (!p.HasExited)
-            {
-                string s = p.StandardOutput.ReadToEnd();
-                UnityEngine.Debug.Log(s);
-                if (s.IndexOf("Denied", StringComparison.InvariantCultureIgnoreCase) > -1)
-                {
-                    return false;
-                }
-                Thread.Sleep(1);
-            }
-
-
-            return true;
+            return new AndroidJavaClass("com.zy.tools.Tool").CallStatic<bool>("upgradeRootPermission");
         }
         catch (Exception e)
         {

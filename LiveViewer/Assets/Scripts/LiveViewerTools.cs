@@ -9,6 +9,7 @@ using System.Web;
 using System.Xml;
 using Newtonsoft.Json;
 using ICSharpCode.SharpZipLib.Zip;
+using UnityEngine;
 using Formatting = Newtonsoft.Json.Formatting;
 
 public class LiveViewerTools
@@ -49,7 +50,11 @@ public class LiveViewerTools
         string data = "";
         XmlNode map = playerPrefsDocument.SelectSingleNode("map");
         dataNode = FindElement(map, "data");
+#if UNITY_2017
+        data = WWW.UnEscapeURL(FindElement(map, "data").InnerText);
+#else
         data = HttpUtility.UrlDecode(FindElement(map, "data").InnerText);
+#endif
         data = JJJLMMOLDJJ.IOAMJKJJOJO(data);
         Console.WriteLine(data);
         prefData = ConsoleApp1.COGFDJGBDDE.HAPNAIKFGNI<PrefData>(data, false, false);
@@ -71,7 +76,12 @@ public class LiveViewerTools
                 newData = prefData;
             }
             string data = JJJLMMOLDJJ.ICLIEPENIGG(ConsoleApp1.COGFDJGBDDE.JDNKNLNDGNB(newData, true));
-            data = HttpUtility.UrlEncode(data);
+#if UNITY_2017
+            data = WWW.EscapeURL(data);
+#else
+         data = HttpUtility.UrlEncode(data);
+#endif
+
             Console.WriteLine(data);
             dataNode.InnerText = data;
             dataNode.OwnerDocument.Save(path);
@@ -112,11 +122,11 @@ public class LiveViewerTools
     }
     public void SaveDatString(string data, string file)
     {
-        
-            byte[] bytes = Encoding.UTF8.GetBytes(data);
-            EPGPCKFMMPF.CNEDIOODIHD(bytes);
-            File.WriteAllBytes(file, bytes);
-      
+
+        byte[] bytes = Encoding.UTF8.GetBytes(data);
+        EPGPCKFMMPF.CNEDIOODIHD(bytes);
+        File.WriteAllBytes(file, bytes);
+
     }
 
     public SaveData LoadSave(string data)

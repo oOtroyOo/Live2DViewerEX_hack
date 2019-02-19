@@ -6,7 +6,7 @@
 #### 软件架构
 PC版，使用Visual Studio 2017 打开  [Live2DViewerEX.sln](Live2DViewerEX.sln)、
 
-手机版 ，[前往下载](releases)
+手机版 ，[前往下载](https://gitee.com/oOtroyOo/Live2DViewerEX_SaveEdit/releases)
 
 使用 Unity 2017 打开 [目录LiveViewer](LiveViewer)
 

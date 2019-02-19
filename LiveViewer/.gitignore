@@ -4,3 +4,4 @@ obj
 Temp
 *.sln
 *.csproj
+*.user

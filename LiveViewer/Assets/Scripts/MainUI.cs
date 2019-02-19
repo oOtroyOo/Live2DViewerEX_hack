@@ -21,9 +21,13 @@ public class MainUI : MonoBehaviour
 
     public void OnOpenPlayer()
     {
-        if (Program.UserCheck()&&File.Exists(LiveViewerTools.PLAYERPREFS_PATH))
+        if (Program.UserCheck())
         {
             PrefData player = Program.UserLoad();
+            if (player == null)
+            {
+                PopUI.ShowMessage(LogType.Error, "读取失败");
+            }
             string data = JsonConvert.SerializeObject(player);
             data = LiveViewerTools.ConvertJsonString(data);
             EditorUi.SetText(data);

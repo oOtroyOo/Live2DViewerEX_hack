@@ -2,5 +2,9 @@ _ReSharper.Caches/
 *.xml
 .vs
 Live2DViewerEX/
+Live2DViewerEX_*
 bin/
 obj/
+*.apk
+packages/
+save/

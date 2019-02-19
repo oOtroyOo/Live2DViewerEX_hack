@@ -9,10 +9,16 @@ using System.Web;
 using System.Xml;
 using Newtonsoft.Json;
 using ICSharpCode.SharpZipLib.Zip;
+#if UNITY_5_3_OR_NEWER
+using UnityEngine;
+#endif
+using Formatting = Newtonsoft.Json.Formatting;
+
 public class LiveViewerTools
 {
     public const string PACKAGE_NAME = "com.pavostudio.live2dviewerex";
     public const string DATAPATH_PATH = "/data/data/" + PACKAGE_NAME + "/";
+    public const string EXT_PRESISTDATA_PATH = "/SDcard/Android/data/" + PACKAGE_NAME + "/files";
     public const string PLAYERPREFS_PATH = DATAPATH_PATH + "shared_prefs/com.pavostudio.live2dviewerex.v2.playerprefs.xml";
 
     public PrefData prefData;
@@ -21,8 +27,12 @@ public class LiveViewerTools
 
     private XmlNode dataNode;
     private XmlDocument playerPrefsDocument;
+#if UNITY_ANDROID
+    protected internal AndroidJavaClass ToolClass = new AndroidJavaClass("com.zy.tools.Tool");
+#endif
     public XmlDocument ReadXml(string path)
     {
+        Console.WriteLine("Read xml " + path);
         XmlDocument xml = new XmlDocument();
         xml.Load(path);
         return xml;
@@ -42,11 +52,40 @@ public class LiveViewerTools
     }
     public PrefData ReadPlayerPrefData(string path = PLAYERPREFS_PATH)
     {
+        try
+        {
+            File.ReadAllText(path);
+        }
+        catch (Exception e)
+        {
+#if UNITY_ANDROID
+            string newpath = Application.persistentDataPath + "/" + Path.GetFileName(path);
+
+
+            string command = string.Format("cp -f {0} {1}", path, newpath);
+            bool root = ToolClass.CallStatic<bool>("RootCommand", command);
+            if (root)
+            {
+                path = newpath;
+            }
+            else
+            {
+                throw e;
+            }
+#else
+            throw e;
+#endif
+
+        }
         playerPrefsDocument = ReadXml(path);
         string data = "";
         XmlNode map = playerPrefsDocument.SelectSingleNode("map");
         dataNode = FindElement(map, "data");
+#if UNITY_5_3_OR_NEWER
+        data = WWW.UnEscapeURL(FindElement(map, "data").InnerText);
+#else
         data = HttpUtility.UrlDecode(FindElement(map, "data").InnerText);
+#endif
         data = JJJLMMOLDJJ.IOAMJKJJOJO(data);
         Console.WriteLine(data);
         prefData = ConsoleApp1.COGFDJGBDDE.HAPNAIKFGNI<PrefData>(data, false, false);
@@ -59,17 +98,41 @@ public class LiveViewerTools
         return state;
     }
 
-    public void SavePlayerPrefData(PrefData newData = null, string path = PLAYERPREFS_PATH)
+    public bool SavePlayerPrefData(PrefData newData = null, string path = PLAYERPREFS_PATH)
     {
-        if (newData == null)
+        try
         {
-            newData = prefData;
+            if (newData == null)
+            {
+                newData = prefData;
+            }
+            string data = JJJLMMOLDJJ.ICLIEPENIGG(ConsoleApp1.COGFDJGBDDE.JDNKNLNDGNB(newData, true));
+#if UNITY_5_3_OR_NEWER
+            data = WWW.EscapeURL(data);
+#else
+            data = HttpUtility.UrlEncode(data);
+#endif
+
+            Console.WriteLine(data);
+            dataNode.InnerText = data;
+#if UNITY_ANDROID
+            string newpath = Application.persistentDataPath + "/" + Path.GetFileName(path);
+
+            dataNode.OwnerDocument.Save(newpath);
+            string command = string.Format("cp -f {0} {1}", newpath, path);
+            bool root = ToolClass.CallStatic<bool>("RootCommand", command);
+            return root;
+#else
+            dataNode.OwnerDocument.Save(path);
+            return true;
+#endif
         }
-        string data = JJJLMMOLDJJ.ICLIEPENIGG(ConsoleApp1.COGFDJGBDDE.JDNKNLNDGNB(newData, true));
-        data = HttpUtility.UrlEncode(data);
-        Console.WriteLine(data);
-        dataNode.InnerText = data;
-        dataNode.OwnerDocument.Save(path);
+        catch (Exception e)
+        {
+            return false;
+        }
+
+        return false;
     }
 
     public string ReadDatString(string file)
@@ -78,11 +141,12 @@ public class LiveViewerTools
         byte[] numArray = File.ReadAllBytes(file);
         EPGPCKFMMPF.CNEDIOODIHD(numArray);
         string data = Encoding.UTF8.GetString(numArray);
+        data = ConvertJsonString(data);
         File.WriteAllText(file + ".json", data);
         return data;
     }
 
-    public void SaveDat<T>(T data, string file)
+    public void SaveDat(object data, string file)
     {
         object[] customAttributes = data.GetType().GetCustomAttributes(false);
         if (customAttributes.Any(a => a is SerializableAttribute))
@@ -96,6 +160,14 @@ public class LiveViewerTools
         {
             throw new CustomAttributeFormatException();
         }
+    }
+    public void SaveDatString(string data, string file)
+    {
+
+        byte[] bytes = Encoding.UTF8.GetBytes(data);
+        EPGPCKFMMPF.CNEDIOODIHD(bytes);
+        File.WriteAllBytes(file, bytes);
+
     }
 
     public SaveData LoadSave(string data)
@@ -112,7 +184,32 @@ public class LiveViewerTools
 
     public void OpenLpk()
     {
-        LFPNEHOMABO.PDJMKIOBAPD(presetData.charDatas[0].zipFilePath,new FGHKCBIHELO())
+        //LFPNEHOMABO.PDJMKIOBAPD(presetData.charDatas[0].zipFilePath,new FGHKCBIHELO())
+    }
+
+    public static string ConvertJsonString(string str)
+    {
+        //格式化json字符串
+        JsonSerializer serializer = new JsonSerializer();
+        TextReader tr = new StringReader(str);
+        JsonTextReader jtr = new JsonTextReader(tr);
+        object obj = serializer.Deserialize(jtr);
+        if (obj != null)
+        {
+            StringWriter textWriter = new StringWriter();
+            JsonTextWriter jsonWriter = new JsonTextWriter(textWriter)
+            {
+                Formatting = Formatting.Indented,
+                Indentation = 4,
+                IndentChar = ' '
+            };
+            serializer.Serialize(jsonWriter, obj);
+            return textWriter.ToString();
+        }
+        else
+        {
+            return str;
+        }
     }
 }
 

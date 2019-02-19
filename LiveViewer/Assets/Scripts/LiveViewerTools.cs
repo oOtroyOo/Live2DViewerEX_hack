@@ -9,7 +9,9 @@ using System.Web;
 using System.Xml;
 using Newtonsoft.Json;
 using ICSharpCode.SharpZipLib.Zip;
+#if UNITY_5_3_OR_NEWER
 using UnityEngine;
+#endif
 using Formatting = Newtonsoft.Json.Formatting;
 
 public class LiveViewerTools
@@ -25,8 +27,12 @@ public class LiveViewerTools
 
     private XmlNode dataNode;
     private XmlDocument playerPrefsDocument;
+#if UNITY_ANDROID
+    protected internal AndroidJavaClass ToolClass = new AndroidJavaClass("com.zy.tools.Tool");
+#endif
     public XmlDocument ReadXml(string path)
     {
+        Console.WriteLine("Read xml " + path);
         XmlDocument xml = new XmlDocument();
         xml.Load(path);
         return xml;
@@ -46,11 +52,36 @@ public class LiveViewerTools
     }
     public PrefData ReadPlayerPrefData(string path = PLAYERPREFS_PATH)
     {
+        try
+        {
+            File.ReadAllText(path);
+        }
+        catch (Exception e)
+        {
+#if UNITY_ANDROID
+            string newpath = Application.persistentDataPath + "/" + Path.GetFileName(path);
+
+
+            string command = string.Format("cp -f {0} {1}", path, newpath);
+            bool root = ToolClass.CallStatic<bool>("RootCommand", command);
+            if (root)
+            {
+                path = newpath;
+            }
+            else
+            {
+                throw e;
+            }
+#else
+            throw e;
+#endif
+
+        }
         playerPrefsDocument = ReadXml(path);
         string data = "";
         XmlNode map = playerPrefsDocument.SelectSingleNode("map");
         dataNode = FindElement(map, "data");
-#if UNITY_2017
+#if UNITY_5_3_OR_NEWER
         data = WWW.UnEscapeURL(FindElement(map, "data").InnerText);
 #else
         data = HttpUtility.UrlDecode(FindElement(map, "data").InnerText);
@@ -76,22 +107,32 @@ public class LiveViewerTools
                 newData = prefData;
             }
             string data = JJJLMMOLDJJ.ICLIEPENIGG(ConsoleApp1.COGFDJGBDDE.JDNKNLNDGNB(newData, true));
-#if UNITY_2017
+#if UNITY_5_3_OR_NEWER
             data = WWW.EscapeURL(data);
 #else
-         data = HttpUtility.UrlEncode(data);
+            data = HttpUtility.UrlEncode(data);
 #endif
 
             Console.WriteLine(data);
             dataNode.InnerText = data;
+#if UNITY_ANDROID
+            string newpath = Application.persistentDataPath + "/" + Path.GetFileName(path);
+
+            dataNode.OwnerDocument.Save(newpath);
+            string command = string.Format("cp -f {0} {1}", newpath, path);
+            bool root = ToolClass.CallStatic<bool>("RootCommand", command);
+            return root;
+#else
             dataNode.OwnerDocument.Save(path);
+            return true;
+#endif
         }
         catch (Exception e)
         {
             return false;
         }
 
-        return true;
+        return false;
     }
 
     public string ReadDatString(string file)

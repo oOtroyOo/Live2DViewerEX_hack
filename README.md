@@ -4,7 +4,7 @@
 仅供学习交流
 
 #### 软件架构
-PC版，使用Visual Studio 2017 打开  [LiveViewer.sln](LiveViewer.sln)、
+PC版，使用Visual Studio 2017 打开  [Live2DViewerEX.sln](Live2DViewerEX.sln)、
 
 手机版 ，使用 Unity 2017 打开 [目录LiveViewer](LiveViewer)
 

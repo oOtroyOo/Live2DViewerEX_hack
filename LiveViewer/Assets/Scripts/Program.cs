@@ -18,6 +18,27 @@ public class Program
 
     private static XmlElement dataNode;
     public static LiveViewerTools liveViewerTools;
+#if UNITY_ANDROID
+    private static AndroidJavaObject toolClass;
+
+    protected static AndroidJavaObject ToolClass
+    {
+        get
+        {
+            if (toolClass == null)
+            {
+                toolClass = new AndroidJavaObject("com.zy.tools.Tool", new AndroidJavaClass("com.unity3d.player.UnityPlayer").GetStatic<AndroidJavaObject>("currentActivity"));
+            }
+            return toolClass;
+        }
+
+        set
+        {
+            toolClass = value;
+        }
+    }
+#endif
+
     public static void Main(string[] args)
     {
         liveViewerTools = new LiveViewerTools();
@@ -79,7 +100,7 @@ public class Program
     {
         try
         {
-            return new AndroidJavaClass("com.zy.tools.Tool").CallStatic<bool>("upgradeRootPermission");
+            return ToolClass.Call<bool>("upgradeRootPermission");
         }
         catch (Exception e)
         {

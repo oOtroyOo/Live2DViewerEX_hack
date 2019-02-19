@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Remoting.Messaging;
 using System.Text;
+using System.Threading;
 using System.Web;
 using System.Xml;
 using Newtonsoft.Json;
@@ -18,7 +19,7 @@ public class LiveViewerTools
 {
     public const string PACKAGE_NAME = "com.pavostudio.live2dviewerex";
     public const string DATAPATH_PATH = "/data/data/" + PACKAGE_NAME + "/";
-    public const string EXT_PRESISTDATA_PATH = "/SDcard/Android/data/" + PACKAGE_NAME + "/files";
+    public const string EXT_PRESISTDATA_PATH = "/sdcard/Android/data/" + PACKAGE_NAME + "/files";
     public const string PLAYERPREFS_PATH = DATAPATH_PATH + "shared_prefs/com.pavostudio.live2dviewerex.v2.playerprefs.xml";
 
     public PrefData prefData;
@@ -28,7 +29,24 @@ public class LiveViewerTools
     private XmlNode dataNode;
     private XmlDocument playerPrefsDocument;
 #if UNITY_ANDROID
-    protected internal AndroidJavaClass ToolClass = new AndroidJavaClass("com.zy.tools.Tool");
+    private AndroidJavaObject toolClass;
+
+    protected internal AndroidJavaObject ToolClass
+    {
+        get
+        {
+            if (toolClass == null)
+            {
+                toolClass = new AndroidJavaObject("com.zy.tools.Tool", new AndroidJavaClass("com.unity3d.player.UnityPlayer").GetStatic<AndroidJavaObject>("currentActivity"));
+            }
+            return toolClass;
+        }
+
+        set
+        {
+            toolClass = value;
+        }
+    }
 #endif
     public XmlDocument ReadXml(string path)
     {
@@ -63,10 +81,19 @@ public class LiveViewerTools
 
 
             string command = string.Format("cp -f {0} {1}", path, newpath);
-            bool root = ToolClass.CallStatic<bool>("RootCommand", command);
+            bool root = ToolClass.Call<bool>("RootCommand", command);
             if (root)
             {
                 path = newpath;
+                new Thread(() =>
+                {
+                    Thread.Sleep(1000);
+                    if (File.Exists(newpath))
+                    {
+
+                        File.Delete(newpath);
+                    }
+                }).Start();
             }
             else
             {
@@ -120,7 +147,16 @@ public class LiveViewerTools
 
             dataNode.OwnerDocument.Save(newpath);
             string command = string.Format("cp -f {0} {1}", newpath, path);
-            bool root = ToolClass.CallStatic<bool>("RootCommand", command);
+            bool root = ToolClass.Call<bool>("RootCommand", command);
+            new Thread(() =>
+            {
+                Thread.Sleep(100);
+                if (File.Exists(newpath))
+                {
+
+                    File.Delete(newpath);
+                }
+            }).Start();
             return root;
 #else
             dataNode.OwnerDocument.Save(path);

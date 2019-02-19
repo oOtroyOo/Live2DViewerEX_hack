@@ -70,7 +70,7 @@ public class MainUI : MonoBehaviour
 #if UNITY_EDITOR
             Directory.CreateDirectory(LiveViewerTools.EXT_PRESISTDATA_PATH);
 #endif
-            FileBrowser.ShowLoadDialog(OnFileOpenSuccess, () => { }, false, LiveViewerTools.EXT_PRESISTDATA_PATH);
+            FileBrowser.ShowLoadDialog(OnFileOpenSuccess, () => { }, false, LiveViewerTools.EXT_PRESISTDATA_PATH + "/save");
         }
         else
         {

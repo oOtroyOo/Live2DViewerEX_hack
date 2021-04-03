@@ -8,29 +8,26 @@ using UnityEngine.UI;
 
 public class EditorUI : MonoBehaviour
 {
-    public Func<string, bool> OnSave;
+    public Action<string> OnSave;
 
     public InputField input;
 
     public Button SaveButton;
     public Button BackButton;
     // Use this for initialization
-    void Start()
+    void Awake()
     {
-        gameObject.SetActive(false);
         SaveButton.onClick.AddListener(OnSaveButton);
         BackButton.onClick.AddListener(Hide);
-        Hide();
     }
 
     private void OnSaveButton()
     {
         try
         {
-            if (OnSave(input.text))
-            {
-                Hide();
-            }
+            OnSave(input.text);
+            Hide();
+            
         }
         catch (Exception e)
         {

@@ -2,14 +2,14 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
-using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading;
-using System.Web;
 using System.Xml;
 using Newtonsoft.Json;
-using ICSharpCode.SharpZipLib.Zip;
+using Newtonsoft.Json.Serialization;
+using ErrorEventArgs = Newtonsoft.Json.Serialization.ErrorEventArgs;
 #if UNITY_5_3_OR_NEWER
 using UnityEngine;
 #endif
@@ -17,21 +17,36 @@ using Formatting = Newtonsoft.Json.Formatting;
 
 public class LiveViewerTools
 {
-    public const string PACKAGE_NAME = "com.pavostudio.live2dviewerex";
+    /* 已弃用
     public const string DATAPATH_PATH = "/data/data/" + PACKAGE_NAME + "/";
-    public const string EXT_PRESISTDATA_PATH = "/sdcard/Android/data/" + PACKAGE_NAME + "/files";
-    public const string PLAYERPREFS_PATH = DATAPATH_PATH + "shared_prefs/com.pavostudio.live2dviewerex.v2.playerprefs.xml";
+    public const string PLAYERPREFS_FILE = "com.pavostudio.live2dviewerex.v2.playerprefs.xml";
+    public const string PLAYERPREFS_PATH = DATAPATH_PATH + "shared_prefs/" + PLAYERPREFS_FILE;
+     
+     */
+    public const string PACKAGE_NAME = "com.pavostudio.live2dviewerex";
+    public const string PrefDataPath = "save/pref.dat";
+    public const string CharaPath = "save/cha/";
 
     public PrefData prefData;
     public SaveData saveData;
     public PresetData presetData;
 
+    public static string WorkingDir =>
+#if !UNITY_EDITOR&&UNITY_ANDROID
+        Application.persistentDataPath;
+#else
+        Environment.CurrentDirectory;
+#endif
     private XmlNode dataNode;
     private XmlDocument playerPrefsDocument;
 #if UNITY_ANDROID
+    public static string EXT_PRESISTDATA_PATH { get; } = Application.persistentDataPath.Replace(Application.identifier, PACKAGE_NAME);
+
     private AndroidJavaObject toolClass;
 
-    protected internal AndroidJavaObject ToolClass
+    private bool requested = false;
+
+    protected internal AndroidJavaObject Tool
     {
         get
         {
@@ -47,7 +62,82 @@ public class LiveViewerTools
             toolClass = value;
         }
     }
+    public bool RootCommand(string command)
+    {
+        return Tool.Call<bool>("RootCommand", command);
+    }
+
+    public void CopyFiles()
+    {
+        if (Application.isMobilePlatform)
+        {
+            try
+            {
+                CopyEntireDir(EXT_PRESISTDATA_PATH, WorkingDir);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+            if (!requested)
+            {
+
+                ManualResetEvent manualResetEvent = new ManualResetEvent(false);
+                Tool.Set("pkg", PACKAGE_NAME);
+                Tool.Call("RequestDataPermission", new AndroidRunable(() =>
+                {
+                    Debug.Log("RequestDataPermission back");
+                    requested = true;
+                    Tool.Call("CopyAllFiles");
+                    manualResetEvent.Set();
+                }));
+                manualResetEvent.WaitOne();
+            }
+            else
+            {
+                Tool.Call("CopyAllFiles");
+            }
+        }
+        //try
+        //{
+        //    CopyEntireDir(EXT_PRESISTDATA_PATH, Application.persistentDataPath);
+        //}
+        //catch (Exception e)
+        //{
+        //    Debug.LogException(e);
+        //}
+
+    }
+
+    public bool CopyBackFile(string file)
+    {
+        try
+        {
+            File.Copy(file, file.Replace(Application.identifier, PACKAGE_NAME));
+            return true;
+        }
+        catch (Exception e)
+        {
+            Debug.LogException(e);
+            return Tool.Call<bool>("CopyBack", file);
+        }
+
+        //File.Copy(Application.persistentDataPath + "/" + file, EXT_PRESISTDATA_PATH);
+    }
 #endif
+
+    public static void CopyEntireDir(string sourcePath, string destPath)
+    {
+        //Now Create all of the directories
+        foreach (string dirPath in Directory.GetDirectories(sourcePath, "*",
+            SearchOption.AllDirectories))
+            Directory.CreateDirectory(dirPath.Replace(sourcePath, destPath));
+
+        //Copy all the files & Replaces any files with the same name
+        foreach (string newPath in Directory.GetFiles(sourcePath, "*.*",
+            SearchOption.AllDirectories))
+            File.Copy(newPath, newPath.Replace(sourcePath, destPath), true);
+    }
     public XmlDocument ReadXml(string path)
     {
         Console.WriteLine("Read xml " + path);
@@ -68,42 +158,11 @@ public class LiveViewerTools
 
         return null;
     }
-    public PrefData ReadPlayerPrefData(string path = PLAYERPREFS_PATH)
+
+    /* 已弃用
+    [Obsolete]
+    public PrefData ReadPlayerPrefDataFromXml(string path = PLAYERPREFS_PATH)
     {
-        try
-        {
-            File.ReadAllText(path);
-        }
-        catch (Exception e)
-        {
-#if UNITY_ANDROID
-            string newpath = Application.persistentDataPath + "/" + Path.GetFileName(path);
-
-
-            string command = string.Format("cp -f {0} {1}", path, newpath);
-            bool root = ToolClass.Call<bool>("RootCommand", command);
-            if (root)
-            {
-                path = newpath;
-                new Thread(() =>
-                {
-                    Thread.Sleep(1000);
-                    if (File.Exists(newpath))
-                    {
-
-                        File.Delete(newpath);
-                    }
-                }).Start();
-            }
-            else
-            {
-                throw e;
-            }
-#else
-            throw e;
-#endif
-
-        }
         playerPrefsDocument = ReadXml(path);
         string data = "";
         XmlNode map = playerPrefsDocument.SelectSingleNode("map");
@@ -111,21 +170,30 @@ public class LiveViewerTools
 #if UNITY_5_3_OR_NEWER
         data = WWW.UnEscapeURL(FindElement(map, "data").InnerText);
 #else
-        data = HttpUtility.UrlDecode(FindElement(map, "data").InnerText);
+        data = WebUtility.UrlDecode(FindElement(map, "data").InnerText);
 #endif
         data = JJJLMMOLDJJ.IOAMJKJJOJO(data);
         Console.WriteLine(data);
-        prefData = ConsoleApp1.COGFDJGBDDE.HAPNAIKFGNI<PrefData>(data, false, false);
-        Console.WriteLine(prefData.userPoint);
+        prefData = LoadPrefData(data);
         return prefData;
     }
+    */
+    public PrefData LoadPrefData(string json)
+    {
+        prefData = Serializer.Deserialize<PrefData>(json, false, false);
+        return prefData;
+    }
+
     public ModelData.CharState LoadCaraState(string data)
     {
-        ModelData.CharState state = ConsoleApp1.COGFDJGBDDE.HAPNAIKFGNI<ModelData.CharState>(data, false, true);
+        ModelData.CharState state = Serializer.Deserialize<ModelData.CharState>(data, false, true);
         return state;
     }
 
-    public bool SavePlayerPrefData(PrefData newData = null, string path = PLAYERPREFS_PATH)
+    /*
+    //已弃用
+    [Obsolete]
+    public bool SavePlayerPrefData(PrefData newData = null)
     {
         try
         {
@@ -133,11 +201,11 @@ public class LiveViewerTools
             {
                 newData = prefData;
             }
-            string data = JJJLMMOLDJJ.ICLIEPENIGG(ConsoleApp1.COGFDJGBDDE.JDNKNLNDGNB(newData, true));
+            string data = JJJLMMOLDJJ.ICLIEPENIGG(Serializer.Serialize(newData, true));
 #if UNITY_5_3_OR_NEWER
             data = WWW.EscapeURL(data);
 #else
-            data = HttpUtility.UrlEncode(data);
+            data = WebUtility.UrlEncode(data);
 #endif
 
             Console.WriteLine(data);
@@ -146,17 +214,17 @@ public class LiveViewerTools
             string newpath = Application.persistentDataPath + "/" + Path.GetFileName(path);
 
             dataNode.OwnerDocument.Save(newpath);
-            string command = string.Format("cp -f {0} {1}", newpath, path);
+            string command = string.Format("cp -rf {0} {1}", newpath, path);
             bool root = ToolClass.Call<bool>("RootCommand", command);
-            new Thread(() =>
-            {
-                Thread.Sleep(100);
-                if (File.Exists(newpath))
-                {
+            //new Thread(() =>
+            //{
+            //    Thread.Sleep(100);
+            //    if (File.Exists(newpath))
+            //    {
 
-                    File.Delete(newpath);
-                }
-            }).Start();
+            //        File.Delete(newpath);
+            //    }
+            //}).Start();
             return root;
 #else
             dataNode.OwnerDocument.Save(path);
@@ -170,51 +238,64 @@ public class LiveViewerTools
 
         return false;
     }
-
+    */
     public string ReadDatString(string file)
     {
-
+        if (!File.Exists(file))
+        {
+            file = WorkingDir + "/" + file;
+        }
         byte[] numArray = File.ReadAllBytes(file);
-        EPGPCKFMMPF.CNEDIOODIHD(numArray);
+        TransCodeByteArray(numArray);
         string data = Encoding.UTF8.GetString(numArray);
-        data = ConvertJsonString(data);
-        File.WriteAllText(file + ".json", data);
-        return data;
+        string prittyJsonString = PrittyJsonString(data);
+        //File.WriteAllText(WorkingDir + "/" + file + ".json", prittyJsonString);
+        return prittyJsonString;
     }
 
-    public void SaveDat(object data, string file)
+    //EPGPCKFMMPF.CNEDIOODIHD
+    public void TransCodeByteArray(byte[] data)
     {
-        object[] customAttributes = data.GetType().GetCustomAttributes(false);
-        if (customAttributes.Any(a => a is SerializableAttribute))
+        for (int i = 0; i < data.Length; i++)
         {
+            data[i] = (byte)((data.Length & 255) ^ (int)data[i]);
+        }
 
-            byte[] bytes = Encoding.UTF8.GetBytes(COGFDJGBDDE.JDNKNLNDGNB(data, false));
-            EPGPCKFMMPF.CNEDIOODIHD(bytes);
-            File.WriteAllBytes(file, bytes);
-        }
-        else
-        {
-            throw new CustomAttributeFormatException();
-        }
     }
-    public void SaveDatString(string data, string file)
-    {
 
+    public void SaveDat(object obj, string file)
+    {
+        string json = JsonConvert.SerializeObject(obj, new JsonSerializerSettings
+        {
+            TypeNameHandling = TypeNameHandling.All
+        });
+        SaveDatString(json, file);
+    }
+    public bool SaveDatString(string data, string file)
+    {
+        if (!file.Contains(WorkingDir))
+        {
+            file = WorkingDir + "/" + file;
+        }
         byte[] bytes = Encoding.UTF8.GetBytes(data);
-        EPGPCKFMMPF.CNEDIOODIHD(bytes);
+        TransCodeByteArray(bytes);
         File.WriteAllBytes(file, bytes);
-
+#if UNITY_ANDROID
+        return CopyBackFile(file);
+#else
+        return true;
+#endif
     }
 
     public SaveData LoadSave(string data)
     {
-        saveData = ConsoleApp1.COGFDJGBDDE.HAPNAIKFGNI<SaveData>(data, false, true);
+        saveData = Serializer.Deserialize<SaveData>(data, false, true);
         return saveData;
     }
 
     public PresetData LoadAutoSave(string data)
     {
-        presetData = ConsoleApp1.COGFDJGBDDE.HAPNAIKFGNI<PresetData>(data, false, true);
+        presetData = Serializer.Deserialize<PresetData>(data, false, true);
         return presetData;
     }
 
@@ -223,7 +304,7 @@ public class LiveViewerTools
         //LFPNEHOMABO.PDJMKIOBAPD(presetData.charDatas[0].zipFilePath,new FGHKCBIHELO())
     }
 
-    public static string ConvertJsonString(string str)
+    public static string PrittyJsonString(string str)
     {
         //格式化json字符串
         JsonSerializer serializer = new JsonSerializer();
@@ -248,4 +329,409 @@ public class LiveViewerTools
         }
     }
 }
+public class Serializer
+{
+    public static string ErrorMessage;
 
+
+    public static T Deserialize<T>(string jsonStr, bool ignoreSetting = false, bool useTypeBinding = false)
+    {
+        Serializer.ErrorMessage = (string)null;
+        if (ignoreSetting)
+            return JsonConvert.DeserializeObject<T>(jsonStr);
+        if (useTypeBinding)
+            return JsonConvert.DeserializeObject<T>(jsonStr, new JsonSerializerSettings()
+            {
+                TypeNameHandling = TypeNameHandling.All,
+                SerializationBinder = new SerializationBinder(),
+                Error = ((target, args) =>
+                 {
+                     ErrorMessage = args.ErrorContext.Error.Message;
+                     args.ErrorContext.Handled = true;
+                 })
+            });
+        return JsonConvert.DeserializeObject<T>(jsonStr, new JsonSerializerSettings()
+        {
+            TypeNameHandling = TypeNameHandling.All,
+            Error = ((target, args) =>
+            {
+                ErrorMessage = args.ErrorContext.Error.Message;
+                args.ErrorContext.Handled = true;
+            })
+        });
+    }
+
+    public static string Serialize(object obj, bool ignoreSetting = false)
+    {
+        if (ignoreSetting)
+            return JsonConvert.SerializeObject(obj);
+        return JsonConvert.SerializeObject(obj, new JsonSerializerSettings()
+        {
+            TypeNameHandling = TypeNameHandling.All
+        });
+    }
+
+
+}
+public class SerializationBinder : DefaultSerializationBinder
+{
+    public virtual System.Type OPJGBCHGHGD(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "模型 {0} 设定")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Интервал")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type JLHCBAILINH(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == ".model.json")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Visualization")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type EKJMPDKLDBH(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "Full Size")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Webコントロール")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type OOKDLGNAGKC(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "陰影")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Load data failed")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type BMMHEEIAIFI(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "Flexible")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Live2D")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type PLKBPGKMMIA(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "ParamEyeROpen")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Manga 4")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type KIGIGMEMOEF(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "30FPS")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "キーバインディング - 表情")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type MKFJOPKPANJ(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "グループ")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "雪")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type INKFPCIACJH(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "上傳物品")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "８ビット")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type FMFMBOJOHDM(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "+")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Нет настраиваемого контента")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type CEFDGCLLKAJ(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "按键绑定")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "全屏")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type MEKBKLHIJKJ(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "模型")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Compat")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type HAMDPHBMBLN(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "Отменить")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "[AVProVideo]HLSParser cannot parse stream ")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type OPLNOMNNGNK(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "壞掉的玻璃2")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Recent Events: ")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type EAMBCNACMBD(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "SetFocusRotation")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "текст")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type JPJGBLLDMOJ(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "costume")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Save")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type MFDOFNLPAIL(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "[")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "水平縮放")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public override System.Type BindToType(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "SettingData+ModelSetting")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "SettingData+ModelSetting[]")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type EOLKNADKFBF(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "/")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Array is empty, or not valid.")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type LNHGMDPJHGH(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "New Cell Shading")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "_UseYpCbCr")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type GNOLIFGCAFJ(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "小部件透明度")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "DefaultWallpaperOffsetEmulator")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type OJDOGKLAMMJ(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "Deinitialise")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "ユーザー")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type FNNMBLDEMED(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "/")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "/")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type KEEGCONLBDB(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "Глобальные настройки")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "init_param")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type POHEHFNPLLL(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "weight")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "连接出错，程序即将退出")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type MFOKLJMLLLN(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "Array is empty, or not valid.")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "リズムに合わせてスケール")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type CCGONACEOLD(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "Bubble Auto Close")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "preview")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type JGEHFNFHLJI(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "秒の表示")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "Список изменений")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type EHJGONMDCOF(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "發射數量")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "オフセット")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+
+    public virtual System.Type LJHLDPEFDDC(string assemblyName, string typeName)
+    {
+        if (typeName != null)
+        {
+            if (typeName == "setup")
+                return typeof(ModelData.ModelSetting);
+            if (typeName == "ビデオ")
+                return typeof(ModelData.ModelSetting[]);
+        }
+        return base.BindToType(assemblyName, typeName);
+    }
+}

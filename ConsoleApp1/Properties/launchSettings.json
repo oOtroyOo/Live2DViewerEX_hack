@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ConsoleApp1": {
+      "commandName": "Project",
+      "commandLineArgs": "\"G:\\Works\\Troy\\Live2DViewerEX\\com.pavostudio.live2dviewerex.v2.playerprefs.xml\""
+    }
+  }
+}

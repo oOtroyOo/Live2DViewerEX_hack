@@ -5,7 +5,7 @@
 
 # 软件架构
 
-手机版 [前往下载](./releases)
+手机版 [前往releases页面下载](../../releases)
 
 使用 Unity 2019 打开 [目录LiveViewer](LiveViewer) 进行打包
 

@@ -40,7 +40,7 @@ public class LiveViewerTools
     private XmlNode dataNode;
     private XmlDocument playerPrefsDocument;
 #if UNITY_ANDROID
-    public static string EXT_PRESISTDATA_PATH { get; } = Application.persistentDataPath.Replace(Application.identifier, PACKAGE_NAME);
+    public static string EXT_PRESISTDATA_PATH => Application.persistentDataPath.Replace(Application.identifier, PACKAGE_NAME);
 
     private AndroidJavaObject toolClass;
 
